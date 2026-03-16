@@ -37,8 +37,26 @@ VOICE_MAP = {
     "StatLine":       {"voice": "en-US-ChristopherNeural", "rate": "+0%",  "pitch": "-2Hz"},
     "HoopsTake":      {"voice": "en-US-SteffanNeural",     "rate": "+12%", "pitch": "+3Hz"},
     "CourtVision":    {"voice": "en-US-JennyNeural",       "rate": "+0%",  "pitch": "+0Hz"},
-    "MoneyBall":      {"voice": "en-US-AndrewNeural",      "rate": "+8%",  "pitch": "-1Hz"},
+    "ScriptMaster":   {"voice": "en-US-AndrewNeural",      "rate": "+8%",  "pitch": "-1Hz"},
     "Global Game":    {"voice": "en-US-BrianNeural",       "rate": "-3%",  "pitch": "+0Hz"},
+}
+
+# Hindi/Spanish voice overrides
+LOCALIZED_VOICES = {
+    # Hindi
+    "hi-IN-MadhurNeural", "hi-IN-SwaraNeural", "hi-IN-HemantNeural",
+    "hi-IN-AaravNeural", "hi-IN-AnanyaNeural", "hi-IN-KavyaNeural",
+    "hi-IN-KunalNeural", "hi-IN-RehaanNeural", "hi-IN-ArjunNeural",
+    # Spanish
+    "es-ES-AlvaroNeural", "es-MX-DaliaNeural", "es-ES-ElviraNeural",
+    "es-MX-JorgeNeural", "es-MX-CeciliaNeural", "es-US-AlonsoNeural",
+    "es-US-PalomaNeural", "es-CO-SalomeNeural", "es-CO-GonzaloNeural",
+    # Arabic
+    "ar-SA-HamedNeural", "ar-SA-ZariyahNeural", "ar-AE-FatimaNeural",
+    "ar-AE-HamdanNeural", "ar-EG-ShakirNeural", "ar-EG-SalmaNeural",
+    "ar-QA-MoazNeural", "ar-JO-SanaNeural", "ar-KW-FahedNeural",
+    # Tagalog
+    "fil-PH-AngeloNeural", "fil-PH-BlessicaNeural"
 }
 
 
@@ -93,6 +111,16 @@ class TTSHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def do_HEAD(self):
+        """Handle HEAD requests (useful for Render health checks)."""
+        path = urlparse(self.path).path
+        if path in ("/", "/health", "/voices"):
+            self.send_response(200)
+            self._cors_headers()
+            self.end_headers()
+        else:
+            self.send_error(404)
+
     def do_POST(self):
         """Synthesize speech."""
         path = urlparse(self.path).path
@@ -115,13 +143,19 @@ class TTSHandler(BaseHTTPRequestHandler):
             self._error(400, "Text too long (max 5000 chars)")
             return
 
-        # Resolve voice from agent name or direct voice ID
+        # Resolve voice: prefer explicit localized voice from frontend,
+        # then fall back to agent name lookup, then default
         agent_name = body.get("agentName", "")
         voice = body.get("voice", "en-US-GuyNeural")
         rate = body.get("rate", "+0%")
         pitch = body.get("pitch", "+0Hz")
 
-        if agent_name and agent_name in VOICE_MAP:
+        # If the frontend sent a localized voice (Hindi/Spanish), use it directly
+        if voice in LOCALIZED_VOICES:
+            # Keep the localized voice, don't override with agent's English voice
+            pass
+        elif agent_name and agent_name in VOICE_MAP:
+            # Use agent's default English voice
             cfg = VOICE_MAP[agent_name]
             voice = cfg["voice"]
             rate = cfg["rate"]
